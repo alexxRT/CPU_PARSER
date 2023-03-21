@@ -82,10 +82,13 @@ return bad_token;                                                \
 while(0)                                                         \
 
 #define SUCCESS_TOKEN()                          \
+do {                                             \
 single_token success_token = {};                 \
 success_token.tag = PARSE_SUCCESS;               \
                                                  \
-return success_token;                            
+return success_token;                            \
+}                                                \
+while(0)                                         \
 
 
 #define POSITION(ptr) (int)((ptr->offset) - (ptr->origin))
