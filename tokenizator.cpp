@@ -2,6 +2,31 @@
 #include <stdlib.h>
 
 
+
+//they dont work by the way :)) i'll look up for syntax and refactor
+#define BAD_TOKEN(ptr)                                           \
+int parse_error_pos = (int)((ptr->ptr) - (ptr->origin));         \
+single_token bad_token = {};                                     \
+                                                                 \
+bad_token.tag         = PARSE_ERROR                              \
+bad_token.in_line_pos = parse_error_pos                          \
+                                                                 \
+return bad_token;                                                \
+
+#define SUCCESS_TOKEN()                          \
+single_token success_token = {};                 \
+success_token.tag = PARSE_SUCCESS;               \
+                                                 \
+return success_token;                            \
+
+
+#define POSITION(ptr) (int)((ptr->ptr) - (ptr->origin))
+
+//developing.......................................................
+
+
+
+
 char commands[] = (
     "push",
     "pop",
@@ -25,6 +50,7 @@ char commands[] = (
     "+", "-", "*", "/"
 );
 
+
 enum command_tags{
     COMMAND              = 0,
     MARK                 = 1,
@@ -36,7 +62,9 @@ enum command_tags{
     CLOSE_ROUND_BRACKET  = 7,
     COMMENT              = 8,
     ARITHMETIC_SIGN      = 9,
-    NOT_A_COMMAND        = 10
+    NOT_A_COMMAND        = 10,
+    PARSE_ERROR          = 11,
+    PARSE_SUCCESS        = 12
 };
 
 enum command_list {
@@ -58,6 +86,22 @@ enum command_list {
     UNKNOWN_COMMAND = 15,
 };
 
+enum ARITHMETIC_SIGNS
+{
+    PLUS  = 0,
+    MINUS = 1,
+    MUL   = 2,
+    DIV   = 3
+};
+
+enum REGISTER_CODE
+{
+    RAX = 0,
+    RBX = 1,
+    RCX = 2,
+    RDX = 3
+};
+
 
 typedef struct _token {
     enum command_tags tag;
@@ -65,7 +109,7 @@ typedef struct _token {
     int  i_value;            //value if its number
     int  register_code;      // rax - 0, rbx - 1, rcx - 2, rdx - 3
     int  arithmetic_code;    // '+' - 0, '-' - 1, '*' - 2, '/' - 3
-    int  in_line_position;   // position in the source text line
+    int  in_line_pos;   // position in the source text line
     char mark[10] = "";     //mark name
 }single_token;
 
@@ -74,6 +118,12 @@ struct set_of_tokens {
     int size_of_set;
 };
 
+
+struct parse_ptr
+{
+    char* ptr;
+    char* origin;
+};
 
 //TASK - write a solid tokenizator :)
 //BEFORE write a code - think about its logic
@@ -108,7 +158,11 @@ int main () {
     new_set.set_of_tokens = tokens_from_string;
     new_set.size_of_set   = 0;
 
-    int error_code = create_tokens_from_string(test_string, &set_of_tokens);
+    struct parse_ptr ptr = {};
+    ptr.origin = test_string;
+    ptr.ptr    = test_string;
+
+    int error_code = create_tokens_from_string(&ptr, &set_of_tokens);
 
     print_tokens(tokens_from_string);
 
@@ -118,56 +172,56 @@ int main () {
     return 0;
 }
 
-bool add_register_token(char** parse_ptr, struct set_of_tokens* set);
-bool add_command_token (char** parse_ptr, struct set_of_tokens* set);
-bool add_bracket_token (char** parse_ptr, struct set_of_tokens* set);
-bool add_number_token  (char** parse_ptr, struct set_of_tokens* set);
-bool add_mark_token    (char** parse_ptr, struct set_of_tokens* set);
-bool add_sign_token    (char** parse_ptr, struct set_of_tokens* set);
-void skip_spaces       (char** parse_ptr);
+bool add_register_token(struct parse_ptr* ptr, struct set_of_tokens* set);
+bool add_command_token (struct parse_ptr* ptr, struct set_of_tokens* set);
+bool add_bracket_token (struct parse_ptr* ptr, struct set_of_tokens* set);
+bool add_number_token  (struct parse_ptr* ptr, struct set_of_tokens* set);
+bool add_mark_token    (struct parse_ptr* ptr, struct set_of_tokens* set);
+bool add_sign_token    (struct parse_ptr* ptr, struct set_of_tokens* set);
+void skip_spaces       (struct parse_ptr* ptr);
 
-single_token create_tokens_from_string(char* string, struct set_of_tokens* set) { //in case of error, it returns
-    char* parse_ptr = string;                                                      //single token with required info to display
+single_token create_tokens_from_string(struct parse_ptr* ptr, struct set_of_tokens* set) { //in case of error, it returns
+                                                                                              //single token with required info to display
                                                                              
-    while (*parse_ptr != "\0"){
+    while (*(ptr->ptr) != "\0"){
         skip_spaces(&parse_ptr);
 
-        // i added breaks expressions to make my code more readable
-        if      (add_command_token (&parse_ptr, set))  
+        // i added 'breaks' to make my code more readable
+        if      (add_command_token (ptr, set))  
             break;
-        else if (add_register_token(&parse_ptr, set))
+        else if (add_register_token(ptr, set))
             break;
-        else if (add_number_token  (&parse_ptr, set))
+        else if (add_number_token  (ptr, set))
             break;
-        else if (add_mark_token    (&parse_ptr, set))
+        else if (add_mark_token    (ptr, set))
             break;
-        else if (add_bracket_token (&parse_ptr, set))
+        else if (add_bracket_token (ptr, set))
             break;
-        else if (add_sign_token    (&parse_ptr, set))
+        else if (add_sign_token    (ptr, set))
             break;
-        else if (*parse_ptr != '\0')
-            return bad_token;  //aka unknown symbol was met
+        else if (*(ptr->ptr) != '\0')
+            BAD_TOKEN(ptr)  //aka unknown symbol was met
     }
 
 
-    return success_token; //in case if everything worked out fine
+    SUCCESS_TOKEN(); //in case if everything worked out fine
 }
 
 
-void skip_spaces(char** parse_ptr){
-    while ((**parse_ptr) == ' ' && (**parse_ptr) != '\0'){ //then we are inside the string
-        (*parse_ptr) ++;
+void skip_spaces(struct parse_ptr* ptr){
+    while (*(ptr->ptr) == ' ' && *(ptr->ptr) != '\0'){ //then we are inside the string
+        (ptr->ptr) ++;
     } 
 }
 
 
-bool add_command_token(char** parse_ptr, struct set_of_tokens* set){
+bool add_command_token(struct parse_ptr* ptr, struct set_of_tokens* set){
     char command[100] = "";
 
     int start_command = 0;
     int end_command   = 0;
 
-    sscanf(*parse_ptr, "%n%[^# ]%n", &start_command, command, &end_command);
+    sscanf(ptr->ptr, "%n%[^# ]%n", &start_command, command, &end_command);
     int command_size = end_command - start_command;
 
     int command_code = find_command(command);
@@ -176,17 +230,24 @@ bool add_command_token(char** parse_ptr, struct set_of_tokens* set){
         return false;
     else 
     {
-        //add new token in the set
+        single_token token = {};
+        token.tag          = COMMAND;
+        token.command_code = command_code;
+        token.in_line_pos  = POSITION(ptr);
+
+        set->set_of_tokens[set->size_of_set] = token;
+        set->size_of_set ++;
+
         (*parse_ptr) += command_size;
         return true;
     }
 }
 
-bool add_register_token(char** parse_ptr, struct set_of_tokens* set){
+bool add_register_token(struct parse_ptr* ptr, struct set_of_tokens* set){
     char register_name[3] = "";
 
     for (int i = 0; i < 3; i ++){
-        if ((**parse_ptr) != '\0') // check if we inside
+        if (*(ptr->ptr) != '\0') // check if we inside
             register_name[i] = (*parse_ptr)[i];
     }
 
@@ -196,48 +257,72 @@ bool add_register_token(char** parse_ptr, struct set_of_tokens* set){
         return false;
     else
     {
-        //add new token
+        single_token token  = {};
+        token.tag           = REGISTER;
+        token.register_code = register_code;
+        token.in_line_pos   = POSITION(ptr);
+
+        set->set_of_tokens[set->size_of_set] = token;
+        set->size_of_set ++;
+
         (*parse_ptr) += 3; //move it for register size
         return true;
     }
 }
 
-bool add_number_token(char** parse_ptr, struct set_of_tokens* set){
-    char* old_ptr = *parse_ptr;
+bool add_number_token(struct parse_ptr* ptr, struct set_of_tokens* set){
+    char* old_ptr = ptr->ptr;
     int val = 0;
 
-    while ('0' <= **parse_ptr && **parse_ptr <= '9')
-    {
-        val = val*10 + **parse_ptr - '0';
-        (*parse_ptr) ++;
+    while ('0' <= *(ptr->ptr) && *(ptr->ptr) <= '9') {
+        val = val*10 + *(ptr->ptr) - '0';
+        (ptr->ptr) ++;
     }
 
     if (old_ptr == *parse_ptr)
         return false;
     else
     {
-        //add new token
+        //just create macroses to fill these repetarive code parts
+        single_token token = {};
+        token.tag          = NUMBER;
+        token.i_value      = val;
+        token.in_line_pos  = POSITION(ptr);
+
+        set->set_of_tokens[set->size_of_set] = token;
+        set->size_of_set ++;
+
         return true;
     }
 } 
 
-bool add_mark_token(char** parse_ptr, struct set_of_tokens* set){
-    if ((**parse_ptr) == ':'){
-        (*parse_ptr) ++;
+bool add_mark_token(struct parse_ptr* ptr, struct set_of_tokens* set){
+    if ((*(ptr->ptr)) == ':'){
+        (ptr->ptr) ++;
 
         char mark[100] = "";
         int start_mark = 0;
         int end_mark   = 0;
 
-        sscanf(*parse_ptr, "%n%[^# ]%n", &start_mark, mark, &end_mark);
+        sscanf(ptr->ptr, "%n%[^# ]%n", &start_mark, mark, &end_mark);
         int mark_size = end_mark - start_mark;
+
+        //assert(mark_size > MAX_MARK_SIZE) !!!
+        //Do same for command size
 
         if (mark_size == 0)
             return false //empty mark - syntax error
         else 
         {
-            //add new mark
-            (*parse_ptr += mark_size);
+            single_token token = {};
+            token.tag          = MARK;
+            strncpy(token.mark, mark, mark_size);
+            token.in_line_pos = POSITION(ptr);
+            
+            set->set_of_tokens[set->set_of_tokens] = token;
+            set->size_of_set ++;
+
+            (ptr->ptr += mark_size);
             return true;
         }
     }
@@ -245,30 +330,67 @@ bool add_mark_token(char** parse_ptr, struct set_of_tokens* set){
         return false; //if there was not found ':' sign at all
 }
 
-bool add_sign_token(char** parse_ptr, struct set_of_tokens* set){
-    switch (**parse_ptr){
+bool add_sign_token(struct parse_ptr* ptr, struct set_of_tokens* set){
+    switch (*(ptr->ptr)){
         case '+':
-            //add token with + code
-            (*parse_ptr) ++;
+        {
+            single_token token    = {};
+            token.tag             = ARITHMETIC_SIGN;
+            token.arithmetic_code = PLUS;
+            token.in_line_pos     = POSITION(ptr);
+
+            set->set_of_tokens[set->size_of_set] = token;
+            set->size_of_set ++;
+
+            (ptr->ptr) ++;
             return true;
+        }
         break;
 
         case '-':
-            //add token with - code
-            (*parse_ptr) ++;
+        {
+            single_token token    = {};
+            token.tag             = ARITHMETIC_SIGN;
+            token.arithmetic_code = MINUS;
+            token.in_line_pos     = POSITION(ptr);
+
+            set->set_of_tokens[set->size_of_set] = token;
+            set->size_of_set ++; 
+
+            (ptr->ptr) ++;
             return true;
+        }
+
         break;
 
         case '*':
-            //add token with * code
-            (*parse_ptr) ++;
+        {
+            single_token token    = {};
+            token.tag             = ARITHMETIC_SIGN;
+            token.arithmetic_code = MUL;
+            token.in_line_pos     = POSITION(ptr);
+
+            set->set_of_tokens[set->size_of_set] = token;
+            set->size_of_set ++; 
+
+            (ptr->ptr) ++;
             return true;
+        }
         break;
 
         case '/':
-            //add token with / code
-            (*parse_ptr) ++;
+        {
+            single_token token    = {};
+            token.tag             = ARITHMETIC_SIGN;
+            token.arithmetic_code = DIV;
+            token.in_line_pos     = POSITION(ptr);
+
+            set->set_of_tokens[set->size_of_set] = token;
+            set->size_of_set ++; 
+
+            (ptr->ptr) ++;
             return true;
+        }
         break;
 
         default:
@@ -279,30 +401,62 @@ bool add_sign_token(char** parse_ptr, struct set_of_tokens* set){
     return false;
 }
 
-bool add_bracket_token(char** parse_ptr, struct set_of_tokens* set){
-    switch (**parse_ptr){
+bool add_bracket_token(struct parse_ptr* ptr, struct set_of_tokens* set){
+    switch (*(ptr->ptr)){
         case '(':
-            //add token with ( code
-            (*parse_ptr) ++;
+        {
+            single_token token    = {};
+            token.tag             = OPEN_ROUND_BRACKET;
+            token.in_line_pos     = POSITION(ptr);
+
+            set->set_of_tokens[set->size_of_set] = token;
+            set->size_of_set ++; 
+
+            (ptr->ptr) ++;
             return true;
+        }
         break;
 
         case ')':
-            //add token with ) code
-            (*parse_ptr) ++;
+        {
+            single_token token    = {};
+            token.tag             = CLOSE_ROUND_BRACKET;
+            token.in_line_pos     = POSITION(ptr);
+
+            set->set_of_tokens[set->size_of_set] = token;
+            set->size_of_set ++; 
+
+            (ptr->ptr) ++;
             return true;
+        }
         break;
 
         case '[':
-            //add token with [ code
-            (*parse_ptr) ++;
+        {
+            single_token token    = {};
+            token.tag             = OPEN_SQUARE_BRACKET;
+            token.in_line_pos     = POSITION(ptr);
+
+            set->set_of_tokens[set->size_of_set] = token;
+            set->size_of_set ++; 
+
+            (ptr->ptr) ++;
             return true;
+        }
         break;
 
         case ']':
-            //add token with ] code
-            (*parse_ptr) ++;
+        {
+            single_token token    = {};
+            token.tag             = CLOSE_SQUARE_BRACKET;
+            token.in_line_pos     = POSITION(ptr);
+
+            set->set_of_tokens[set->size_of_set] = token;
+            set->size_of_set ++; 
+
+            (ptr->ptr) ++;
             return true;
+        }
         break;
 
         default:
