@@ -1,6 +1,8 @@
 #include <iostream>
 #include <stdlib.h>
 
+static const int MAX_MARK_SIZE = 10;
+
 enum command_tags{
     COMMAND              = 0,
     MARK                 = 1,
@@ -62,13 +64,91 @@ typedef struct _token {
     int  arithmetic_code;             // '+' - 0, '-' - 1, '*' - 2, '/' - 3
     int  i_value;       //value if its number
     int  in_line_pos;   // position in the source text line
-    char mark[10] = ""; //mark name
+    char mark[MAX_MARK_SIZE] = ""; //mark name
 }single_token;
 
 struct set_of_tokens {
     single_token* set_of_tokens;
     int size_of_set;
 };
+
+#define POSITION(ptr) (int)((ptr->offset) - (ptr->origin))
+
+#define ADD_REGISTER_TOKEN(set, register_code)                   \
+do{                                                              \
+    single_token token  = {};                                    \
+    token.tag           = REGISTER;                              \
+    token.register_code = register_code;                         \
+    token.in_line_pos   = POSITION(ptr);                         \
+                                                                 \
+    set->set_of_tokens[set->size_of_set] = token;                \
+    set->size_of_set ++;                                         \
+}while(0)                                                        \
+
+#define ADD_COMMAND_TOKEN(set, command_code)                     \
+do{                                                              \
+    single_token token = {};                                     \
+    token.tag          = COMMAND;                                \
+    token.command_code = command_code;                           \
+    token.in_line_pos  = POSITION(ptr);                          \
+                                                                 \
+    set->set_of_tokens[set->size_of_set] = token;                \
+    set->size_of_set ++;                                         \
+}while(0)                                                        \
+
+#define ADD_COMMENT_TOKEN(set)                                   \
+do{                                                              \
+    single_token token = {};                                     \
+    token.tag          = COMMENT;                                \
+    token.in_line_pos  = POSITION(ptr);                          \
+                                                                 \
+    set->set_of_tokens[set->size_of_set] = token;                \
+    set->size_of_set ++;                                         \
+}while(0)                                                        \
+
+#define ADD_NUMBER_TOKEN(set, i_value)                           \
+do{                                                              \
+    single_token token = {};                                     \
+    token.tag          = NUMBER;                                 \
+    token.i_value      = i_value;                                \
+    token.in_line_pos  = POSITION(ptr);                          \
+                                                                 \
+    set->set_of_tokens[set->size_of_set] = token;                \
+    set->size_of_set ++;                                         \
+}while(0)                                                        \
+
+#define ADD_BRAKET_TOKEN(set, bracket_code)                      \
+do{                                                              \
+    single_token token    = {};                                  \
+    token.tag             = bracket_code;                        \
+    token.in_line_pos     = POSITION(ptr);                       \
+                                                                 \
+    set->set_of_tokens[set->size_of_set] = token;                \
+    set->size_of_set ++;                                         \
+}while(0)                                                        \
+
+#define ADD_MARK_TOKEN(set, mark)                                \
+do{                                                              \
+    single_token token = {};                                     \
+    token.tag          = MARK;                                   \
+    strncpy(token.mark, mark, MAX_MARK_SIZE);                    \
+    token.in_line_pos = POSITION(ptr);                           \
+                                                                 \
+    set->set_of_tokens[set->size_of_set] = token;                \
+    set->size_of_set ++;                                         \
+}while(0)                                                        \
+
+#define ADD_SIGN_TOKEN(set, sign_code)                           \
+do{                                                              \
+    single_token token    = {};                                  \
+    token.tag             = ARITHMETIC_SIGN;                     \
+    token.arithmetic_code = sign_code;                           \
+    token.in_line_pos     = POSITION(ptr);                       \
+                                                                 \
+    set->set_of_tokens[set->size_of_set] = token;                \
+    set->size_of_set ++;                                         \
+}while(0)                                                        \
+
 
 #define BAD_TOKEN(ptr)                                           \
 do{                                                              \
@@ -89,9 +169,6 @@ success_token.tag = PARSE_SUCCESS;               \
 return success_token;                            \
 }                                                \
 while(0)                                         \
-
-
-#define POSITION(ptr) (int)((ptr->offset) - (ptr->origin))
 
 
 struct parse_ptr
@@ -180,30 +257,62 @@ bool add_mark_token    (struct parse_ptr* ptr, struct set_of_tokens* set);
 bool add_sign_token    (struct parse_ptr* ptr, struct set_of_tokens* set);
 void skip_spaces       (struct parse_ptr* ptr);
 
+void create_string   (const char* file_name, char** string);
+void destroy_srting  (char* string);
+
+
+void create_string(const char* file_name, char** string){
+    FILE* source_file = fopen(file_name, "r");
+    assert (source_file != NULL); //bad create
+
+    int file_size = get_file_size(source_file);
+    (*string) = (char*)calloc(file_size, sizeof(char)); //
+
+    fread(*string, sizeof(char), file_size, source_file);
+    fclose(source_file);
+
+    return;
+}
+
+void destroy_string(char** string){
+    free(*string);
+    *string = NULL;
+
+    return;
+}
+
+void create_set (struct set_of_tokens* set, size_t size){
+    single_token* tokens_from_string = (single_token*)calloc(size, sizeof(single_token));
+
+    set->set_of_tokens = tokens_from_string;
+    set->size_of_set   = 0;
+
+    return;
+}
+
+void destroy_set (struct set_of_tokens* set){
+    set->size_of_set = 0;
+    free(set->set_of_tokens);
+
+    set->set_of_tokens = NULL;
+    return;
+}
 
 
 int main () {
 
-    FILE* source_file = fopen("source_file.txt", "r");
-    assert (source_file != NULL);
+    char* string = NULL;
+    create_string("source_file.txt", &string);
 
-    int file_size = get_file_size(source_file);
+    struct set_of_tokens new_set = {};
+    create_set(&new_set, strlen(string));
 
-    char test_string[1000] = "";
-    fread(test_string, sizeof(char), file_size, source_file);
-
-    struct set_of_tokens new_set;
-    single_token* tokens_from_string = (single_token*)calloc(file_size, sizeof(single_token));
-
-    new_set.set_of_tokens = tokens_from_string;
-    new_set.size_of_set   = 0;
 
     struct parse_ptr ptr = {};
-    ptr.origin = test_string;
-    ptr.offset = test_string;
+    ptr.origin = string;
+    ptr.offset = string;
 
     single_token result = {};
-    
     result = create_tokens_from_string(&ptr, &new_set);
 
     if (result.tag == PARSE_SUCCESS)
@@ -213,9 +322,9 @@ int main () {
 
     print_tokens(&new_set);
 
-    free  (tokens_from_string);
-    fclose(source_file);
 
+    destroy_srting(&string);
+    destroy_set   (&new_set);
     return 0;
 }
 
@@ -262,19 +371,14 @@ bool add_command_token(struct parse_ptr* ptr, struct set_of_tokens* set){
     sscanf(ptr->offset, "%n%[^# ]%n", &start_command, command, &end_command);
     int command_size = end_command - start_command; 
 
+    //code gen
     enum command_list command_code = find_command(command);
 
     if (command_code == UNKNOWN_COMMAND)
         return false;
     else 
     {
-        single_token token = {};
-        token.tag          = COMMAND;
-        token.command_code = command_code;
-        token.in_line_pos  = POSITION(ptr);
-
-        set->set_of_tokens[set->size_of_set] = token;
-        set->size_of_set ++;
+        ADD_COMMAND_TOKEN(set, command_code);
 
         (ptr->offset) += command_size;
         return true;
@@ -289,19 +393,14 @@ bool add_register_token(struct parse_ptr* ptr, struct set_of_tokens* set){
             register_name[i] = (ptr->offset)[i];
     }
 
-    enum register_list register_code = find_register(register_name);
+    //code gen
+    enum register_list register_code = find_register(register_name); 
 
     if (register_code == UNKNOWN_REGISTER)
         return false;
     else
     {
-        single_token token  = {};
-        token.tag           = REGISTER;
-        token.register_code = register_code;
-        token.in_line_pos   = POSITION(ptr);
-
-        set->set_of_tokens[set->size_of_set] = token;
-        set->size_of_set ++;
+        ADD_REGISTER_TOKEN(set, register_code);
 
         (ptr->offset) += 3; //move it for register size
         return true;
@@ -321,14 +420,7 @@ bool add_number_token(struct parse_ptr* ptr, struct set_of_tokens* set){
         return false;
     else
     {
-        //just create macroses to fill these repetarive code parts
-        single_token token = {};
-        token.tag          = NUMBER;
-        token.i_value      = val;
-        token.in_line_pos  = POSITION(ptr);
-
-        set->set_of_tokens[set->size_of_set] = token;
-        set->size_of_set ++;
+        ADD_NUMBER_TOKEN(set, val);
 
         return true;
     }
@@ -353,13 +445,7 @@ bool add_mark_token(struct parse_ptr* ptr, struct set_of_tokens* set){
             return false; //empty mark - syntax error
         else 
         {
-            single_token token = {};
-            token.tag          = MARK;
-            strncpy(token.mark, mark, mark_size);
-            token.in_line_pos = POSITION(ptr);
-            
-            set->set_of_tokens[set->size_of_set] = token;
-            set->size_of_set ++;
+            ADD_MARK_TOKEN(set, mark);
 
             (ptr->offset) += mark_size;
             return true;
@@ -373,13 +459,7 @@ bool add_sign_token(struct parse_ptr* ptr, struct set_of_tokens* set){
     switch (*(ptr->offset)){
         case '+':
         {
-            single_token token    = {};
-            token.tag             = ARITHMETIC_SIGN;
-            token.arithmetic_code = PLUS;
-            token.in_line_pos     = POSITION(ptr);
-
-            set->set_of_tokens[set->size_of_set] = token;
-            set->size_of_set ++;
+            ADD_SIGN_TOKEN(set, PLUS);
 
             (ptr->offset) ++;
             return true;
@@ -388,13 +468,7 @@ bool add_sign_token(struct parse_ptr* ptr, struct set_of_tokens* set){
 
         case '-':
         {
-            single_token token    = {};
-            token.tag             = ARITHMETIC_SIGN;
-            token.arithmetic_code = MINUS;
-            token.in_line_pos     = POSITION(ptr);
-
-            set->set_of_tokens[set->size_of_set] = token;
-            set->size_of_set ++; 
+            ADD_SIGN_TOKEN(set, MINUS);
 
             (ptr->offset) ++;
             return true;
@@ -404,13 +478,7 @@ bool add_sign_token(struct parse_ptr* ptr, struct set_of_tokens* set){
 
         case '*':
         {
-            single_token token    = {};
-            token.tag             = ARITHMETIC_SIGN;
-            token.arithmetic_code = MULTIPLY;
-            token.in_line_pos     = POSITION(ptr);
-
-            set->set_of_tokens[set->size_of_set] = token;
-            set->size_of_set ++; 
+            ADD_SIGN_TOKEN(set, MULTIPLY);
 
             (ptr->offset) ++;
             return true;
@@ -419,13 +487,7 @@ bool add_sign_token(struct parse_ptr* ptr, struct set_of_tokens* set){
 
         case '/':
         {
-            single_token token    = {};
-            token.tag             = ARITHMETIC_SIGN;
-            token.arithmetic_code = DIVISION;
-            token.in_line_pos     = POSITION(ptr);
-
-            set->set_of_tokens[set->size_of_set] = token;
-            set->size_of_set ++; 
+            ADD_SIGN_TOKEN(set, DIVISION);
 
             (ptr->offset) ++;
             return true;
@@ -433,12 +495,7 @@ bool add_sign_token(struct parse_ptr* ptr, struct set_of_tokens* set){
 
         case '\n':
         {
-            single_token token = {};
-            token.tag          = NEW_LINE;
-            token.in_line_pos  = POSITION(ptr);
-
-            set->set_of_tokens[set->size_of_set] = token;
-            set->size_of_set ++;
+            ADD_SIGN_TOKEN(set, NEW_LINE);
 
             (ptr->offset) ++;
             return true;
@@ -457,12 +514,7 @@ bool add_bracket_token(struct parse_ptr* ptr, struct set_of_tokens* set){
     switch (*(ptr->offset)){
         case '(':
         {
-            single_token token    = {};
-            token.tag             = OPEN_ROUND_BRACKET;
-            token.in_line_pos     = POSITION(ptr);
-
-            set->set_of_tokens[set->size_of_set] = token;
-            set->size_of_set ++; 
+            ADD_COMMAND_TOKEN(set, OPEN_ROUND_BRACKET);
 
             (ptr->offset) ++;
             return true;
@@ -471,12 +523,7 @@ bool add_bracket_token(struct parse_ptr* ptr, struct set_of_tokens* set){
 
         case ')':
         {
-            single_token token    = {};
-            token.tag             = CLOSE_ROUND_BRACKET;
-            token.in_line_pos     = POSITION(ptr);
-
-            set->set_of_tokens[set->size_of_set] = token;
-            set->size_of_set ++; 
+            ADD_COMMAND_TOKEN(set, CLOSE_ROUND_BRACKET);
 
             (ptr->offset) ++;
             return true;
@@ -485,12 +532,7 @@ bool add_bracket_token(struct parse_ptr* ptr, struct set_of_tokens* set){
 
         case '[':
         {
-            single_token token    = {};
-            token.tag             = OPEN_SQUARE_BRACKET;
-            token.in_line_pos     = POSITION(ptr);
-
-            set->set_of_tokens[set->size_of_set] = token;
-            set->size_of_set ++; 
+            ADD_COMMAND_TOKEN(set, OPEN_SQUARE_BRACKET); 
 
             (ptr->offset) ++;
             return true;
@@ -499,12 +541,7 @@ bool add_bracket_token(struct parse_ptr* ptr, struct set_of_tokens* set){
 
         case ']':
         {
-            single_token token    = {};
-            token.tag             = CLOSE_SQUARE_BRACKET;
-            token.in_line_pos     = POSITION(ptr);
-
-            set->set_of_tokens[set->size_of_set] = token;
-            set->size_of_set ++; 
+            ADD_COMMAND_TOKEN(set, CLOSE_SQUARE_BRACKET);
 
             (ptr->offset) ++;
             return true;
@@ -522,12 +559,7 @@ bool add_bracket_token(struct parse_ptr* ptr, struct set_of_tokens* set){
 bool add_comment_token(struct parse_ptr* ptr, struct set_of_tokens* set){
     if (*(ptr->offset) == '#')
     {
-        single_token token = {};
-        token.tag          = COMMENT;
-        token.in_line_pos  = POSITION(ptr);
-
-        set->set_of_tokens[set->size_of_set] = token;
-        set->size_of_set ++;
+        ADD_COMMENT_TOKEN(set);
 
         (ptr->offset) ++;
         return true;
